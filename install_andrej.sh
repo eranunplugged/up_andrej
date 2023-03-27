@@ -11,29 +11,39 @@ if [ ! -w "$install_dir" ]; then
   exit 1
 fi
 
-# Create the push_custom_changes.sh script in the installation directory
+# Create the push_changes script in the installation directory
 cat > "${install_dir}/${script_name}" << 'EOF'
 #!/bin/bash
 
 usage() {
-  echo "Usage: $0 <repository-url> <branch> <commit-message>"
+  echo "Usage: $0 <local-source-dir> <destination-repo-url> <destination-branch> <commit-message>"
+  echo "If <local-source-dir> is empty, the current directory will be used."
   exit 1
 }
 
-if [ $# -ne 3 ]; then
+if [ $# -ne 4 ]; then
   usage
 fi
 
-repo_url="$1"
-branch="$2"
-commit_msg="$3"
+source_dir="$1"
+dest_repo="$2"
+dest_branch="$3"
+commit_msg="$4"
 
-# Clone the specified repository and branch to a temporary directory
-temp_dir=$(mktemp -d)
-git clone --branch "$branch" "$repo_url" "$temp_dir"
+# Use the current directory if the source_dir is empty
+if [ -z "$source_dir" ]; then
+  source_dir=$(pwd)
+fi
 
-# Change the directory to the cloned repository
-cd "$temp_dir"
+# Clone the destination repository and specified branch to a temporary directory
+temp_dest_dir=$(mktemp -d)
+git clone --branch "$dest_branch" "$dest_repo" "$temp_dest_dir"
+
+# Copy the changes and new files from the source directory to the destination repository
+cp -rT "$source_dir/" "$temp_dest_dir/"
+
+# Change the directory to the destination repository
+cd "$temp_dest_dir"
 
 # Check if there are any changes in the custom files
 if [ -n "$(git status --porcelain)" ]; then
@@ -45,8 +55,8 @@ if [ -n "$(git status --porcelain)" ]; then
   # Commit the changes with the specified commit message
   git commit -m "$commit_msg"
 
-  # Push the changes to the remote repository and specified branch
-  git push origin "$branch"
+  # Push the changes to the remote destination repository and specified branch
+  git push origin "$dest_branch"
 
   # Print the commit log
   echo "Commit log:"
@@ -56,12 +66,11 @@ else
 fi
 
 # Cleanup: Remove the temporary directory
-cd ..
-rm -rf "$temp_dir"
+rm -rf "$temp_dest_dir"
 EOF
 
 # Make the installed script executable
 chmod +x "${install_dir}/${script_name}"
 
-echo "The push_custom_changes tool has been installed successfully."
-echo "You can now use it by running 'push_custom_changes <repository-url> <branch> <commit-message>'."
+echo "The andrej tool has been installed successfully."
+echo "You can now use it by running 'andrej <local-source-dir> <destination-repo-url> <destination-branch> <commit-message>'."
